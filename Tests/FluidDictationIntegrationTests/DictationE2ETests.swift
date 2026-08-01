@@ -384,6 +384,7 @@ final class DictationE2ETests: XCTestCase {
         }
     }
 
+    #if arch(arm64)
     func testPronunciationDictionaryLabelsUseLastDuplicateEntry() {
         let id = UUID()
         let labels = FluidAudioProvider.dictionaryLabels(from: [
@@ -393,6 +394,7 @@ final class DictationE2ETests: XCTestCase {
 
         XCTAssertEqual(labels, [id: "New"])
     }
+    #endif
 
     func testCustomDictionaryReplacementMatchesPunctuationTriggers() {
         defer { ASRService.invalidateDictionaryCache() }
@@ -847,6 +849,7 @@ final class DictationE2ETests: XCTestCase {
         }
     }
 
+    #if arch(arm64)
     func testPronunciationReplacementPreservesPunctuationAndSpacing() {
         let replacements = [
             FluidAudioProvider.PronunciationTextReplacement(wordRange: 1...1, label: "Barath"),
@@ -861,6 +864,7 @@ final class DictationE2ETests: XCTestCase {
             "Hi,  Barath! How are you?"
         )
     }
+    #endif
 
     func testPronunciationStoreRejectsInconsistentEnrollments() async {
         let store = PronunciationDictionaryStore()

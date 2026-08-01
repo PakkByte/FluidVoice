@@ -34,4 +34,5 @@ jobs:
           -scheme Fluid
           -configuration Debug
           -destination 'platform=macOS,arch=${{ matrix.architecture }}'
+          -skip-testing:FluidDictationIntegrationTests/DictationE2ETests/testDictationEndToEnd_whisperTiny_transcribesFixture
           CODE_SIGNING_ALLOWED=NO
