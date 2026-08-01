@@ -247,6 +247,7 @@ final class ASRService: ObservableObject {
 
     /// Cached providers to avoid re-instantiation
     private var fluidAudioProvider: FluidAudioProvider?
+    private var sherpaParakeetProvider: SherpaParakeetProvider?
     private var parakeetRealtimeProvider: ParakeetRealtimeProvider?
     private var externalCoreMLProvider: ExternalCoreMLTranscriptionProvider?
     private var nemotronProviders: [NemotronProvider.Mode: NemotronProvider] = [:]
@@ -322,6 +323,7 @@ final class ASRService: ObservableObject {
         await self.transcriptionExecutor.cancelAndAwaitPending()
 
         self.fluidAudioProvider = nil
+        self.sherpaParakeetProvider = nil
         self.parakeetRealtimeProvider = nil
         self.externalCoreMLProvider = nil
         self.nemotronProviders.removeAll()
@@ -349,7 +351,12 @@ final class ASRService: ObservableObject {
         case .appleSpeech:
             return self.getAppleSpeechProvider()
         case .parakeetTDT, .parakeetTDTv2:
-            return self.getFluidAudioProvider()
+            switch TranscriptionBackendRoute.route(for: model) {
+            case .sherpaOnnx:
+                return self.getSherpaParakeetProvider()
+            default:
+                return self.getFluidAudioProvider()
+            }
         case .parakeetRealtime:
             return self.getParakeetRealtimeProvider()
         case .cohereTranscribeSixBit:
@@ -375,6 +382,16 @@ final class ASRService: ObservableObject {
             "ASRService: Created FluidAudio provider [vocabBoosting=\(SettingsStore.shared.vocabularyBoostingEnabled)]",
             source: "ASRService"
         )
+        return provider
+    }
+
+    private func getSherpaParakeetProvider() -> SherpaParakeetProvider {
+        if let existing = self.sherpaParakeetProvider {
+            return existing
+        }
+        let provider = SherpaParakeetProvider()
+        self.sherpaParakeetProvider = provider
+        DebugLogger.shared.info("ASRService: Created Sherpa Parakeet provider", source: "ASRService")
         return provider
     }
 
@@ -549,8 +566,12 @@ final class ASRService: ObservableObject {
         case .appleSpeech:
             return AppleSpeechProvider()
         case .parakeetTDT, .parakeetTDTv2:
-            // Create a new provider configured for the specific model
-            return FluidAudioProvider(modelOverride: model, configureWordBoosting: false)
+            switch TranscriptionBackendRoute.route(for: model) {
+            case .sherpaOnnx:
+                return SherpaParakeetProvider(modelOverride: model)
+            default:
+                return FluidAudioProvider(modelOverride: model, configureWordBoosting: false)
+            }
         case .parakeetRealtime:
             return ParakeetRealtimeProvider()
         case .cohereTranscribeSixBit:
@@ -674,6 +695,7 @@ final class ASRService: ObservableObject {
 
         // Reset cached providers to force re-initialization with new settings
         self.fluidAudioProvider = nil
+        self.sherpaParakeetProvider = nil
         self.parakeetRealtimeProvider = nil
         self.externalCoreMLProvider = nil
         self.whisperProvider = nil

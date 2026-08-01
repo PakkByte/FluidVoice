@@ -245,7 +245,7 @@ extension SettingsStore.SpeechModel {
     var supportsCustomVocabulary: Bool {
         switch self {
         case .parakeetTDT, .parakeetTDTv2:
-            return true
+            return CPUArchitecture.isAppleSilicon
         default:
             return false
         }

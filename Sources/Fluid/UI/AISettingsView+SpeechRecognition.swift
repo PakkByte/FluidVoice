@@ -208,6 +208,17 @@ extension VoiceEngineSettingsView {
                                 .foregroundStyle(self.theme.palette.accent)
                         }
 
+                        if CPUArchitecture.isIntel,
+                           model == .parakeetTDT || model == .parakeetTDTv2
+                        {
+                            Text("Intel CPU")
+                                .font(self.theme.typography.bodySmallStrong)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(self.theme.palette.accent.opacity(0.2)))
+                                .foregroundStyle(self.theme.palette.accent)
+                        }
+
                         Text(model.languageSupport)
                             .font(self.theme.typography.bodySmallStrong)
                             .padding(.horizontal, 6)

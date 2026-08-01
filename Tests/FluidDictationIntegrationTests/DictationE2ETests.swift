@@ -4,6 +4,76 @@ import XCTest
 
 @MainActor
 final class DictationE2ETests: XCTestCase {
+    func testIntelOffersOfflineParakeetModels() {
+        let models = SettingsStore.SpeechModel.availableModels(
+            for: .intel,
+            supportsMacOS15: true,
+            supportsMacOS26: false
+        )
+
+        XCTAssertTrue(models.contains(.parakeetTDT))
+        XCTAssertTrue(models.contains(.parakeetTDTv2))
+        XCTAssertFalse(models.contains(.parakeetRealtime))
+    }
+
+    func testParakeetBackendRoutingPreservesAppleSiliconPath() {
+        XCTAssertEqual(
+            TranscriptionBackendRoute.route(for: .parakeetTDT, architecture: .intel),
+            .sherpaOnnx
+        )
+        XCTAssertEqual(
+            TranscriptionBackendRoute.route(for: .parakeetTDTv2, architecture: .intel),
+            .sherpaOnnx
+        )
+        XCTAssertEqual(
+            TranscriptionBackendRoute.route(for: .parakeetTDT, architecture: .applesilicon),
+            .fluidAudio
+        )
+    }
+
+    func testSherpaParakeetManifestsArePinnedAndComplete() {
+        for spec in [SherpaParakeetModelRegistry.v2, SherpaParakeetModelRegistry.v3] {
+            XCTAssertEqual(spec.revision.count, 40)
+            XCTAssertEqual(Set(spec.artifacts.map(\.path)), [
+                "encoder.int8.onnx",
+                "decoder.int8.onnx",
+                "joiner.int8.onnx",
+                "tokens.txt",
+            ])
+            XCTAssertTrue(spec.artifacts.allSatisfy { $0.byteCount > 0 && $0.sha256.count == 64 })
+            XCTAssertGreaterThan(spec.expectedDownloadBytes, 600_000_000)
+        }
+    }
+
+    func testSherpaParakeetRejectsWrongSizedArtifacts() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        for artifact in SherpaParakeetModelRegistry.v2.artifacts {
+            try Data("not a model".utf8).write(to: root.appendingPathComponent(artifact.path))
+        }
+
+        XCTAssertFalse(SherpaParakeetModelRegistry.v2.artifactsAreComplete(at: root))
+    }
+
+    func testSherpaParakeetTranscribesFixtureWhenExplicitlyEnabled() async throws {
+        guard ProcessInfo.processInfo.environment["FLUIDVOICE_RUN_SHERPA_INTEGRATION"] == "1" else {
+            throw XCTSkip("Set FLUIDVOICE_RUN_SHERPA_INTEGRATION=1 to download and exercise the real Intel model.")
+        }
+        guard CPUArchitecture.isIntel else {
+            throw XCTSkip("The custom Sherpa provider is used on Intel Macs.")
+        }
+
+        let provider = SherpaParakeetProvider(modelOverride: .parakeetTDTv2)
+        try await provider.prepare(progressHandler: nil)
+        let samples = try AudioFixtureLoader.load16kMonoFloatSamples(named: "dictation_fixture", ext: "wav")
+        let result = try await provider.transcribeFinal(samples)
+
+        XCTAssertFalse(result.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    }
+
     private let enableTranscriptionSoundsKey = "EnableTranscriptionSounds"
     private let transcriptionStartSoundKey = "TranscriptionStartSound"
     private let dictationPromptProfilesKey = "DictationPromptProfiles"

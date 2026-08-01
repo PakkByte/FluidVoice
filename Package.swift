@@ -9,6 +9,7 @@ let package = Package(
         .macOS("15.0"),
     ],
     dependencies: [
+        .package(path: "Vendor/SherpaOnnxRuntime"),
         .package(url: "https://github.com/mxcl/AppUpdater.git", from: "1.0.0"),
         .package(url: "https://github.com/altic-dev/FluidAudio.git", branch: "B/cohere-coreml-asr"),
         .package(url: "https://github.com/mxcl/PromiseKit", from: "6.0.0"),
@@ -32,8 +33,15 @@ let package = Package(
                 "FluidAudio",
                 "PromiseKit",
                 "DynamicNotchKit",
+                "SherpaOnnxRuntime",
                 .product(name: "TranscribeCpp", package: "transcribe-cpp-swift"),
                 .product(name: "PostHog", package: "posthog-ios"),
+            ],
+            path: "Sources/Fluid",
+            exclude: [
+                "CoreAudioCaptureSupportBridge.c",
+                "CoreAudioCaptureSupportBridge.h",
+                "Fluid-Bridging-Header.h",
             ]
         ),
     ]

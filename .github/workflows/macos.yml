@@ -1,0 +1,37 @@
+name: macOS
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: macos-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15-intel
+            architecture: x86_64
+          - runner: macos-15
+            architecture: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode 26.3
+        run: sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
+      - name: Resolve packages
+        run: xcodebuild -resolvePackageDependencies -project Fluid.xcodeproj -scheme Fluid
+      - name: Build and test
+        run: >-
+          xcodebuild test
+          -project Fluid.xcodeproj
+          -scheme Fluid
+          -configuration Debug
+          -destination 'platform=macOS,arch=${{ matrix.architecture }}'
+          CODE_SIGNING_ALLOWED=NO
