@@ -27,12 +27,21 @@ jobs:
         run: sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
       - name: Resolve packages
         run: xcodebuild -resolvePackageDependencies -project Fluid.xcodeproj -scheme Fluid
-      # This workflow proves that the complete app links on both architectures and
-      # runs the deterministic tests for the Intel Parakeet integration. The main
-      # build workflow remains responsible for the broader test suite.
-      - name: Build and test Intel Parakeet integration
+      - name: Build complete app for testing
         run: >-
-          xcodebuild test
+          xcodebuild build-for-testing
+          -project Fluid.xcodeproj
+          -scheme Fluid
+          -configuration Debug
+          -destination 'platform=macOS,arch=${{ matrix.architecture }}'
+          CODE_SIGNING_ALLOWED=NO
+      # The hosted Intel runner's virtual audio device can prevent the GUI test
+      # host from connecting. Run app-hosted tests on Apple silicon and exercise
+      # the Sherpa runtime directly on Intel after proving the full app links.
+      - name: Test Parakeet app integration
+        if: matrix.architecture == 'arm64'
+        run: >-
+          xcodebuild test-without-building
           -project Fluid.xcodeproj
           -scheme Fluid
           -configuration Debug
@@ -42,3 +51,6 @@ jobs:
           -only-testing:FluidDictationIntegrationTests/DictationE2ETests/testSherpaParakeetManifestsArePinnedAndComplete
           -only-testing:FluidDictationIntegrationTests/DictationE2ETests/testSherpaParakeetRejectsWrongSizedArtifacts
           CODE_SIGNING_ALLOWED=NO
+      - name: Test Sherpa runtime
+        if: matrix.architecture == 'x86_64'
+        run: swift test --package-path Vendor/SherpaOnnxRuntime
