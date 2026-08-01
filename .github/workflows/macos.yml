@@ -27,12 +27,18 @@ jobs:
         run: sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
       - name: Resolve packages
         run: xcodebuild -resolvePackageDependencies -project Fluid.xcodeproj -scheme Fluid
-      - name: Build and test
+      # This workflow proves that the complete app links on both architectures and
+      # runs the deterministic tests for the Intel Parakeet integration. The main
+      # build workflow remains responsible for the broader test suite.
+      - name: Build and test Intel Parakeet integration
         run: >-
           xcodebuild test
           -project Fluid.xcodeproj
           -scheme Fluid
           -configuration Debug
           -destination 'platform=macOS,arch=${{ matrix.architecture }}'
-          -skip-testing:FluidDictationIntegrationTests/DictationE2ETests/testDictationEndToEnd_whisperTiny_transcribesFixture
+          -only-testing:FluidDictationIntegrationTests/DictationE2ETests/testIntelOffersOfflineParakeetModels
+          -only-testing:FluidDictationIntegrationTests/DictationE2ETests/testParakeetBackendRoutingPreservesAppleSiliconPath
+          -only-testing:FluidDictationIntegrationTests/DictationE2ETests/testSherpaParakeetManifestsArePinnedAndComplete
+          -only-testing:FluidDictationIntegrationTests/DictationE2ETests/testSherpaParakeetRejectsWrongSizedArtifacts
           CODE_SIGNING_ALLOWED=NO
