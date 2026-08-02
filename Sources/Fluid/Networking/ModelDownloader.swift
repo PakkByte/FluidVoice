@@ -522,12 +522,11 @@ final class HuggingFaceModelDownloader {
     /// `.mlmodelc` / `.mlpackage` payloads are binary (`coremldata.bin`, `weights/weight.bin`,
     /// `model.mlmodel` protobuf) or JSON (`metadata.json`, `Manifest.json`) starting with
     /// `{` / `[`; the MIL program text (`model.mil`) starts with `program`; the vocab JSON
-    /// starts with `{`; and `tokenizer.model` is a SentencePiece binary. So any payload that,
-    /// after BOM + whitespace stripping, starts with `<` followed by a markup-ish byte is a
-    /// proxy/block page or a markup document standing in for the real file — reject it. This
-    /// catches `<!doctype`, `<html`, `<head>`, `<body>`, `<script>`, `<meta>`, comments
-    /// (`<!-- -->`) and XML / `<?xml` declarations, not just the two prefixes we used to
-    /// match. See issue #353.
+    /// starts with `{`; and `tokenizer.model` is a SentencePiece binary. Plain-text token
+    /// vocabularies are the exception: Sherpa Parakeet's `tokens.txt` legitimately begins
+    /// with an angle-bracket token and numeric ID, such as `<unk> 0`. Recognize that line
+    /// shape before applying the markup check so a valid vocabulary is not rejected as HTML.
+    /// See issue #353.
     static func looksLikeHTML(_ data: Data) -> Bool {
         var bytes = [UInt8](data.prefix(512))
         if bytes.starts(with: [0xef, 0xbb, 0xbf]) {
@@ -542,6 +541,23 @@ final class HuggingFaceModelDownloader {
         guard bytes.first == 0x3c, bytes.count >= 2 else {
             return false
         }
+
+        // A Sherpa-style token vocabulary uses one `token integerID` pair per line and may
+        // legitimately start with `<unk> 0`, `<blk> 0`, or another special token. This is
+        // model data, not an HTML tag. Require both the closed angle token and a numeric ID
+        // on the first line so ordinary markup such as `<html>` is still rejected.
+        let firstLineBytes = bytes.prefix { $0 != 0x0a && $0 != 0x0d }
+        if let firstLine = String(bytes: firstLineBytes, encoding: .utf8) {
+            let fields = firstLine.split(whereSeparator: { $0 == " " || $0 == "\t" })
+            if fields.count == 2,
+               fields[0].first == "<",
+               fields[0].last == ">",
+               Int(fields[1]) != nil
+            {
+                return false
+            }
+        }
+
         // …immediately followed by a markup-ish byte: an ASCII letter (a tag such as
         // `<html`), `!` (0x21 — `<!doctype`, `<!--`), `?` (0x3F — `<?xml`), or `/` (0x2F —
         // a stray closing tag). Requiring this second byte avoids over-rejecting a

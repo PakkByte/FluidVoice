@@ -2185,6 +2185,14 @@ final class DictationE2ETests: XCTestCase {
         XCTAssertFalse(HuggingFaceModelDownloader.looksLikeHTML(Data("<".utf8)))
     }
 
+    func testLooksLikeHTML_acceptsParakeetTokenVocabulary() {
+        let parakeetV2Prefix = "<unk> 0\n▁t 1\n▁th 2\n"
+        let parakeetV3Prefix = "<unk> 0\n<|nospeech|> 1\n<pad> 2\n"
+
+        XCTAssertFalse(HuggingFaceModelDownloader.looksLikeHTML(Data(parakeetV2Prefix.utf8)))
+        XCTAssertFalse(HuggingFaceModelDownloader.looksLikeHTML(Data(parakeetV3Prefix.utf8)))
+    }
+
     func testValidateDownloadedFile_rejectsHTMLBodyAndAcceptsJSON() throws {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("FluidVoice-ValidateTest-\(UUID().uuidString)", isDirectory: true)
