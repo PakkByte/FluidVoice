@@ -220,7 +220,7 @@ enum ExternalCoreMLModelRegistry {
                 cachedDecoderFileName: "cohere_decoder_cached.mlpackage",
                 expectedModelID: "CohereLabs/cohere-transcribe-03-2026",
                 expectedSampleRate: 16_000,
-                computeConfiguration: .aneSmall,
+                computeConfiguration: CPUArchitecture.isIntel ? .sequentialGPU : .aneSmall,
                 sourceURL: URL(string: "https://huggingface.co/BarathwajAnandan/cohere-transcribe-03-2026-CoreML-6bit"),
                 repositoryOwner: "BarathwajAnandan",
                 repositoryName: "cohere-transcribe-03-2026-CoreML-6bit",

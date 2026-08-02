@@ -1,9 +1,7 @@
-import Foundation
-
-#if arch(arm64)
 import AVFoundation
 @preconcurrency import CoreML
 import FluidAudio
+import Foundation
 
 @available(macOS 14.0, *)
 final class NemotronProvider: TranscriptionProvider {
@@ -167,9 +165,10 @@ final class NemotronProvider: TranscriptionProvider {
         let manager: NemotronStreamingAsrManager
         do {
             progressHandler?(.loading)
-            manager = try await self.loadManager(modelDirectory: dir, computeUnits: .cpuAndNeuralEngine)
+            let preferredComputeUnits: MLComputeUnits = CPUArchitecture.isIntel ? .cpuAndGPU : .cpuAndNeuralEngine
+            manager = try await self.loadManager(modelDirectory: dir, computeUnits: preferredComputeUnits)
         } catch {
-            guard Self.shouldRetryWithoutNeuralEngine(error) else {
+            guard CPUArchitecture.isAppleSilicon, Self.shouldRetryWithoutNeuralEngine(error) else {
                 throw error
             }
             DebugLogger.shared.warning(
@@ -594,45 +593,3 @@ final class NemotronProvider: TranscriptionProvider {
         NSError(domain: "NemotronProvider", code: -1, userInfo: [NSLocalizedDescriptionKey: description])
     }
 }
-#else
-final class NemotronProvider: TranscriptionProvider {
-    enum Mode {
-        case offline
-        case streaming
-        case streaming320
-
-        var displayName: String {
-            switch self {
-            case .offline: return "Nemotron 3.5 Multilingual"
-            case .streaming: return "Nemotron Speech 3.5 - Ultra Fast Low Latency"
-            case .streaming320: return "Nemotron Speech 3.5 - Ultra Fast Low Latency"
-            }
-        }
-    }
-
-    var name: String { self.mode.displayName }
-    var isAvailable: Bool { false }
-    private(set) var isReady: Bool = false
-    var prefersNativeFileTranscription: Bool { false }
-
-    private let mode: Mode
-
-    init(mode: Mode = .offline) {
-        self.mode = mode
-    }
-
-    func prepare(progressHandler: ((ModelPreparationProgress) -> Void)? = nil) async throws {
-        throw Self.makeError("Nemotron requires Apple Silicon.")
-    }
-
-    func transcribe(_ samples: [Float]) async throws -> ASRTranscriptionResult {
-        throw Self.makeError("Nemotron requires Apple Silicon.")
-    }
-
-    func modelsExistOnDisk() -> Bool { false }
-
-    private static func makeError(_ description: String) -> NSError {
-        NSError(domain: "NemotronProvider", code: -1, userInfo: [NSLocalizedDescriptionKey: description])
-    }
-}
-#endif

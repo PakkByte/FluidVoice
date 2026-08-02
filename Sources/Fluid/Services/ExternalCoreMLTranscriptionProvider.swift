@@ -1,7 +1,5 @@
-import Foundation
-
-#if arch(arm64)
 import FluidAudio
+import Foundation
 
 @available(macOS 15.0, *)
 final class ExternalCoreMLTranscriptionProvider: TranscriptionProvider {
@@ -445,31 +443,3 @@ final class ExternalCoreMLTranscriptionProvider: TranscriptionProvider {
         return samples + Array(repeating: 0, count: maxAudioSamples - samples.count)
     }
 }
-
-#else
-
-final class ExternalCoreMLTranscriptionProvider: TranscriptionProvider {
-    let name = "External CoreML"
-    let isAvailable = false
-    let isReady = false
-
-    init(modelOverride: SettingsStore.SpeechModel? = nil) {}
-
-    func prepare(progressHandler: ((ModelPreparationProgress) -> Void)? = nil) async throws {
-        throw NSError(
-            domain: "ExternalCoreMLTranscriptionProvider",
-            code: -1,
-            userInfo: [NSLocalizedDescriptionKey: "External CoreML models are only supported on Apple Silicon Macs."]
-        )
-    }
-
-    func transcribe(_ samples: [Float]) async throws -> ASRTranscriptionResult {
-        throw NSError(
-            domain: "ExternalCoreMLTranscriptionProvider",
-            code: -1,
-            userInfo: [NSLocalizedDescriptionKey: "External CoreML models are only supported on Apple Silicon Macs."]
-        )
-    }
-}
-
-#endif

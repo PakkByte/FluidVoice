@@ -152,9 +152,8 @@ jobs:
           /usr/libexec/PlistBuddy -c "Set :ApplicationProperties:ApplicationPath Applications/$APP_NAME.app" "$ARCHIVE_INFO_PLIST"
           /usr/libexec/PlistBuddy -c "Set :ApplicationProperties:CFBundleIdentifier $BUNDLE_IDENTIFIER" "$ARCHIVE_INFO_PLIST"
 
-          # Xcode's XCFramework copy flattens CTranscribe's version symlinks.
-          # Restore the canonical framework layout before replacing its stale
-          # upstream signature.
+          # Xcode's XCFramework copy can flatten version symlinks. Restore the
+          # canonical layouts before replacing stale upstream signatures.
           CTRANSCRIBE_FRAMEWORK="$APP_PATH/Contents/Frameworks/CTranscribe.framework"
           test -d "$CTRANSCRIBE_FRAMEWORK/Versions/A"
           rm -rf \
@@ -166,9 +165,21 @@ jobs:
           ln -s Versions/Current/CTranscribe "$CTRANSCRIBE_FRAMEWORK/CTranscribe"
           ln -s Versions/Current/Resources "$CTRANSCRIBE_FRAMEWORK/Resources"
 
+          ONNXRUNTIME_FRAMEWORK="$APP_PATH/Contents/Frameworks/onnxruntime.framework"
+          test -d "$ONNXRUNTIME_FRAMEWORK/Versions/A"
+          rm -rf \
+            "$ONNXRUNTIME_FRAMEWORK/Versions/Current" \
+            "$ONNXRUNTIME_FRAMEWORK/onnxruntime" \
+            "$ONNXRUNTIME_FRAMEWORK/Resources" \
+            "$ONNXRUNTIME_FRAMEWORK/Versions/A/_CodeSignature"
+          ln -s A "$ONNXRUNTIME_FRAMEWORK/Versions/Current"
+          ln -s Versions/Current/onnxruntime "$ONNXRUNTIME_FRAMEWORK/onnxruntime"
+          ln -s Versions/Current/Resources "$ONNXRUNTIME_FRAMEWORK/Resources"
+
           # Ad-hoc signing requires no certificate or secret, but gives macOS
           # TCC a valid code identity for permissions such as Accessibility.
           codesign --force --sign - --timestamp=none "$CTRANSCRIBE_FRAMEWORK"
+          codesign --force --sign - --timestamp=none "$ONNXRUNTIME_FRAMEWORK"
           codesign --force --sign - --timestamp=none \
             "$APP_PATH/Contents/Frameworks/MediaRemoteAdapter.framework"
           codesign --force --sign - --timestamp=none --options runtime \
@@ -183,6 +194,9 @@ jobs:
           test -L "$CTRANSCRIBE_FRAMEWORK/Versions/Current"
           test -L "$CTRANSCRIBE_FRAMEWORK/CTranscribe"
           test -L "$CTRANSCRIBE_FRAMEWORK/Resources"
+          test -L "$ONNXRUNTIME_FRAMEWORK/Versions/Current"
+          test -L "$ONNXRUNTIME_FRAMEWORK/onnxruntime"
+          test -L "$ONNXRUNTIME_FRAMEWORK/Resources"
 
           RPATH_DEPENDENCY_COUNT=0
           while IFS= read -r DEPENDENCY; do

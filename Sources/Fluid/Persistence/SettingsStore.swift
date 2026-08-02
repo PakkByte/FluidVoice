@@ -4243,7 +4243,7 @@ final class SettingsStore: ObservableObject {
 
         var requiresAppleSilicon: Bool {
             switch self {
-            case .parakeetRealtime, .qwen3Asr, .cohereTranscribeSixBit, .nemotronOffline, .nemotronStreaming, .nemotronStreaming320: return true
+            case .qwen3Asr: return true
             default: return false
             }
         }
@@ -4326,12 +4326,6 @@ final class SettingsStore: ObservableObject {
             supportsMacOS26: Bool
         ) -> [SpeechModel] {
             allCases.filter { model in
-                if model == .whisperLargeTurbo, architecture == .intel {
-                    return false
-                }
-                if model == .whisperLarge, architecture == .intel {
-                    return false
-                }
                 if model == .qwen3Asr, !Self.qwenPreviewEnabled {
                     return false
                 }
@@ -4373,10 +4367,8 @@ final class SettingsStore: ObservableObject {
             )
         }
 
-        /// Default model for the current architecture
-        static var defaultModel: SpeechModel {
-            CPUArchitecture.isAppleSilicon ? .parakeetTDT : .whisperBase
-        }
+        /// Universal default; the backend route selects the implementation for each architecture.
+        static let defaultModel: SpeechModel = .parakeetTDT
 
         // MARK: - UI Card Metadata
 
@@ -4474,6 +4466,14 @@ final class SettingsStore: ObservableObject {
         /// Warning text for models with high memory requirements, nil if no warning needed
         var memoryWarning: String? {
             switch self {
+            case .parakeetRealtime where CPUArchitecture.isIntel:
+                return "Intel uses the CPU and graphics processor. Live text may appear more slowly than on Apple Silicon."
+            case .cohereTranscribeSixBit where CPUArchitecture.isIntel:
+                return "Intel preview: needs 8GB+ RAM and several GB of temporary free space during first-time setup."
+            case .nemotronOffline, .nemotronStreaming, .nemotronStreaming320:
+                return CPUArchitecture.isIntel
+                    ? "Intel preview: works locally but can be much slower than real time."
+                    : nil
             case .qwen3Asr:
                 return "⚠️ Requires 8GB+ RAM. Best on newer Apple Silicon Macs."
             case .whisperLarge:
@@ -4599,8 +4599,8 @@ final class SettingsStore: ObservableObject {
         /// Large Whisper models are too slow for streaming, so they only do final transcription on stop.
         var supportsStreaming: Bool {
             switch self {
-            case .parakeetTDT, .parakeetTDTv2 where CPUArchitecture.isIntel:
-                return false // Intel uses Sherpa's accurate offline CPU recognizer.
+            case .nemotronOffline where CPUArchitecture.isIntel:
+                return false
             case .qwen3Asr, .whisperMedium, .whisperLargeTurbo, .whisperLarge:
                 return false // Too slow for real-time chunk processing
             default:
@@ -4625,6 +4625,8 @@ final class SettingsStore: ObservableObject {
         /// Models without native incremental decoding should use a slower interval.
         var streamingPreviewIntervalSeconds: Double {
             switch self {
+            case .parakeetTDT, .parakeetTDTv2:
+                return CPUArchitecture.isIntel ? 1.5 : 0.6
             case .parakeetRealtime:
                 return 0.2
             case .nemotronStreaming, .nemotronStreaming320:
@@ -4739,11 +4741,7 @@ final class SettingsStore: ObservableObject {
                 }
                 let directory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?
                     .appendingPathComponent(hint, isDirectory: true)
-                #if arch(arm64)
                 return directory.map { NemotronProvider.artifactsAreComplete(at: $0) } ?? false
-                #else
-                return false
-                #endif
             default:
                 // Whisper models
                 guard let whisperFile = self.whisperModelFile else { return false }
@@ -5263,10 +5261,6 @@ extension SettingsStore {
                 if model == .nemotronStreaming320 {
                     return .nemotronStreaming
                 }
-                let requiresAppleSiliconWhisper = model == .whisperLargeTurbo || model == .whisperLarge
-                if requiresAppleSiliconWhisper, !CPUArchitecture.isAppleSilicon {
-                    return .whisperBase
-                }
                 // Validate model is available on this architecture
                 if model.requiresAppleSilicon && !CPUArchitecture.isAppleSilicon {
                     return .whisperBase
@@ -5363,11 +5357,11 @@ extension SettingsStore {
             case "ggml-base.bin": newModel = .whisperBase
             case "ggml-small.bin": newModel = .whisperSmall
             case "ggml-medium.bin": newModel = .whisperMedium
-            case "ggml-large-v3.bin": newModel = CPUArchitecture.isAppleSilicon ? .whisperLarge : .whisperBase
+            case "ggml-large-v3.bin": newModel = .whisperLarge
             default: newModel = .whisperBase
             }
         case "fluidAudio":
-            newModel = CPUArchitecture.isAppleSilicon ? .parakeetTDT : .whisperBase
+            newModel = SpeechModel.defaultModel
         default: // "auto"
             newModel = SpeechModel.defaultModel
         }

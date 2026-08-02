@@ -33,8 +33,14 @@ jobs:
           -project Fluid.xcodeproj
           -scheme Fluid
           -configuration Debug
+          -derivedDataPath "${{ github.workspace }}/DerivedData/CI"
           -destination 'platform=macOS,arch=${{ matrix.architecture }}'
           CODE_SIGNING_ALLOWED=NO
+      - name: Smoke test Intel Parakeet app routing
+        if: matrix.architecture == 'x86_64'
+        run: >-
+          "${{ github.workspace }}/DerivedData/CI/Build/Products/Debug/FluidVoice Debug.app/Contents/MacOS/FluidVoice Debug"
+          --fluidvoice-intel-provider-smoke
       # The hosted Intel runner's virtual audio device can prevent the GUI test
       # host from connecting. Run app-hosted tests on Apple silicon and exercise
       # the Sherpa runtime directly on Intel after proving the full app links.
@@ -45,8 +51,9 @@ jobs:
           -project Fluid.xcodeproj
           -scheme Fluid
           -configuration Debug
+          -derivedDataPath "${{ github.workspace }}/DerivedData/CI"
           -destination 'platform=macOS,arch=${{ matrix.architecture }}'
-          -only-testing:FluidDictationIntegrationTests/DictationE2ETests/testIntelOffersOfflineParakeetModels
+          -only-testing:FluidDictationIntegrationTests/DictationE2ETests/testIntelOffersEveryCompatibleSpeechModel
           -only-testing:FluidDictationIntegrationTests/DictationE2ETests/testParakeetBackendRoutingPreservesAppleSiliconPath
           -only-testing:FluidDictationIntegrationTests/DictationE2ETests/testSherpaParakeetManifestsArePinnedAndComplete
           -only-testing:FluidDictationIntegrationTests/DictationE2ETests/testSherpaParakeetRejectsWrongSizedArtifacts

@@ -4,7 +4,9 @@ import XCTest
 
 @MainActor
 final class DictationE2ETests: XCTestCase {
-    func testIntelOffersOfflineParakeetModels() {
+    func testIntelOffersEveryCompatibleSpeechModel() {
+        XCTAssertEqual(SettingsStore.SpeechModel.defaultModel, .parakeetTDT)
+
         let models = SettingsStore.SpeechModel.availableModels(
             for: .intel,
             supportsMacOS15: true,
@@ -13,7 +15,14 @@ final class DictationE2ETests: XCTestCase {
 
         XCTAssertTrue(models.contains(.parakeetTDT))
         XCTAssertTrue(models.contains(.parakeetTDTv2))
-        XCTAssertFalse(models.contains(.parakeetRealtime))
+        XCTAssertTrue(models.contains(.parakeetRealtime))
+        XCTAssertTrue(models.contains(.cohereTranscribeSixBit))
+        XCTAssertTrue(models.contains(.nemotronOffline))
+        XCTAssertTrue(models.contains(.nemotronStreaming))
+        XCTAssertTrue(models.contains(.whisperLargeTurbo))
+        XCTAssertTrue(models.contains(.whisperLarge))
+        XCTAssertFalse(models.contains(.qwen3Asr), "Qwen remains disabled for every architecture upstream")
+        XCTAssertFalse(models.contains(.appleSpeechAnalyzer), "Apple Speech Analyzer still follows the macOS 26 requirement")
     }
 
     func testParakeetBackendRoutingPreservesAppleSiliconPath() {
@@ -28,6 +37,37 @@ final class DictationE2ETests: XCTestCase {
         XCTAssertEqual(
             TranscriptionBackendRoute.route(for: .parakeetTDT, architecture: .applesilicon),
             .fluidAudio
+        )
+    }
+
+    func testIntelParakeetStreamingPreviewUsesABoundedAudioWindow() {
+        let overflow = 32_000
+        let samples = (0..<(SherpaParakeetProvider.streamingPreviewMaxSamples + overflow)).map(Float.init)
+
+        let preview = SherpaParakeetProvider.streamingPreviewSamples(from: samples)
+
+        XCTAssertEqual(preview.count, SherpaParakeetProvider.streamingPreviewMaxSamples)
+        XCTAssertEqual(preview.first, Float(overflow))
+        XCTAssertEqual(preview.last, samples.last)
+    }
+
+    func testIntelParakeetStreamingPreviewMergesWindowOverlap() {
+        XCTAssertEqual(
+            SherpaParakeetProvider.mergedStreamingPreview(
+                previous: "Hello world this is",
+                current: "world this is FluidVoice"
+            ),
+            "Hello world this is FluidVoice"
+        )
+    }
+
+    func testIntelParakeetStreamingPreviewAppendsWithoutOverlap() {
+        XCTAssertEqual(
+            SherpaParakeetProvider.mergedStreamingPreview(
+                previous: "First window",
+                current: "second window"
+            ),
+            "First window second window"
         )
     }
 

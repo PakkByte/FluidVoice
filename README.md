@@ -120,12 +120,12 @@ https://github.com/user-attachments/assets/c57ef6d5-f0a1-4a3f-a121-637533442c24
 
 | Model | Best for | Language support | Download size | Hardware |
 | --- | --- | --- | --- | --- |
-| Nemotron Speech 3.5 — Ultra Fast Low Latency | Streaming-capable multilingual dictation | ~40 languages | ~670 MB | Apple Silicon |
-| Nemotron 3.5 Multilingual | Higher-accuracy multilingual dictation | ~40 languages | ~530 MB | Apple Silicon |
-| [Parakeet Flash (Beta)](https://huggingface.co/nvidia/parakeet_realtime_eou_120m-v1) | Lowest-latency live English dictation | English | ~250 MB | Apple Silicon |
+| Nemotron Speech 3.5 — Ultra Fast Low Latency | Streaming-capable multilingual dictation | ~40 languages | ~670 MB | Apple Silicon and Intel preview |
+| Nemotron 3.5 Multilingual | Higher-accuracy multilingual dictation | ~40 languages | ~530 MB | Apple Silicon and Intel preview |
+| [Parakeet Flash (Beta)](https://huggingface.co/nvidia/parakeet_realtime_eou_120m-v1) | Lowest-latency live English dictation | English | ~428 MB | Apple Silicon and Intel |
 | Parakeet TDT v3 | Fast multilingual dictation | [25 languages](#parakeet-tdt-v3-languages) | ~500 MB Apple Silicon / ~640 MB Intel | Apple Silicon and Intel |
 | Parakeet TDT v2 | Fast English-only dictation | [English](#parakeet-tdt-v2-languages) | ~500 MB Apple Silicon / ~631 MB Intel | Apple Silicon and Intel |
-| Cohere Transcribe | High-accuracy multilingual dictation | [14 languages](#cohere-transcribe-languages) | ~1.4 GB | Apple Silicon |
+| Cohere Transcribe | High-accuracy multilingual dictation | [14 languages](#cohere-transcribe-languages) | ~1.54 GB | Apple Silicon and Intel preview |
 | Apple Speech | Zero-download native macOS speech | [System languages](#apple-speech-languages) | Built-in | Apple Silicon + Intel |
 | Whisper Tiny / Base / Small / Medium / Large | Broad compatibility, including Intel Macs | [99 languages](#whisper-language-support) | ~75 MB to ~2.9 GB | Apple Silicon + Intel |
 
@@ -176,9 +176,9 @@ Whisper supports up to 99 languages, depending on the model size you choose.
 ## Requirements
 
 - macOS 15.0 (Sequoia) or later
-- Apple Silicon Mac for all models
-- Intel Macs supported via Whisper models (from 1.5.1+)
-- ~1 GB disk space for a voice model
+- Apple Silicon provides the fastest model performance
+- Intel Macs support Parakeet TDT v2/v3, Parakeet Flash, Nemotron, Cohere preview, Apple Speech, and all Whisper sizes
+- ~1-2 GB disk space per voice model; Cohere also needs several GB of temporary free space during first-time setup
 - ~3.5 GB disk space for the Fluid Intelligence model (optional)
 - Microphone access
 - Accessibility permissions for typing
