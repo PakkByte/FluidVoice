@@ -1374,12 +1374,12 @@ final class SettingsStore: ObservableObject {
         }
     }
 
-    /// Anonymous analytics toggle (default: ON). Uses default-true semantics so existing installs
-    /// upgrading to a version that includes analytics do not silently default to OFF.
+    /// Anonymous analytics toggle. This personal fork defaults to OFF so fresh installs and
+    /// rebuilt copies do not contact the upstream analytics service unless explicitly enabled.
     var shareAnonymousAnalytics: Bool {
         get {
             let value = self.defaults.object(forKey: Keys.shareAnonymousAnalytics)
-            if value == nil { return true }
+            if value == nil { return false }
             return self.defaults.bool(forKey: Keys.shareAnonymousAnalytics)
         }
         set {

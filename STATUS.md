@@ -9,4 +9,5 @@ Date: 2026-08-01
 - Confirmed: Xcode 26.3 is installed, the full Intel app builds locally, focused Intel integration tests pass, and the macOS CI workflow passes on both Intel and Apple Silicon.
 - Confirmed: the Parakeet `tokens.txt` downloader no longer mistakes valid angle-bracket vocabulary entries such as `<unk> 0` for HTML. The regression test first reproduced the failure and passes after the fix while the existing HTML-block-page tests remain green.
 - Installed: the rebuilt, ad-hoc-signed Intel app is at `/Users/apple54/Applications/FluidVoice Intel.app`; Parakeet TDT v2 (Blazing Fast - English) is downloaded and active.
+- Privacy: anonymous analytics and automatic update checks are disabled for the installed personal build; the source default for anonymous analytics is OFF on this branch.
 - Pull request: `https://github.com/PakkByte/FluidVoice/pull/1`.
