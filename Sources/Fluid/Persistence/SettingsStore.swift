@@ -1374,12 +1374,12 @@ final class SettingsStore: ObservableObject {
         }
     }
 
-    /// Anonymous analytics toggle (default: ON). Uses default-true semantics so existing installs
-    /// upgrading to a version that includes analytics do not silently default to OFF.
+    /// Anonymous analytics toggle. This personal fork defaults to OFF so fresh installs and
+    /// rebuilt copies do not contact the upstream analytics service unless explicitly enabled.
     var shareAnonymousAnalytics: Bool {
         get {
             let value = self.defaults.object(forKey: Keys.shareAnonymousAnalytics)
-            if value == nil { return true }
+            if value == nil { return false }
             return self.defaults.bool(forKey: Keys.shareAnonymousAnalytics)
         }
         set {
@@ -4131,7 +4131,7 @@ final class SettingsStore: ObservableObject {
         /// Flip to `true` in a future round to re-enable Qwen without deleting implementation.
         static let qwenPreviewEnabled = false
 
-        // MARK: - FluidAudio Models (Apple Silicon Only)
+        // MARK: - NVIDIA Models
 
         case parakeetTDT = "parakeet-tdt"
         case parakeetTDTv2 = "parakeet-tdt-v2"
@@ -4201,8 +4201,8 @@ final class SettingsStore: ObservableObject {
 
         var downloadSize: String {
             switch self {
-            case .parakeetTDT: return "~460.9 MiB"
-            case .parakeetTDTv2: return "~442.9 MiB"
+            case .parakeetTDT: return CPUArchitecture.isIntel ? "~639.4 MiB" : "~460.9 MiB"
+            case .parakeetTDTv2: return CPUArchitecture.isIntel ? "~630.6 MiB" : "~442.9 MiB"
             case .parakeetRealtime: return "~428.4 MiB"
             case .qwen3Asr: return "~2.0 GiB"
             case .cohereTranscribeSixBit: return "~1.54 GiB"
@@ -4222,8 +4222,10 @@ final class SettingsStore: ObservableObject {
 
         var expectedDownloadBytes: Int64 {
             switch self {
-            case .parakeetTDT: return 483_288_717
-            case .parakeetTDTv2: return 464_421_712
+            case .parakeetTDT:
+                return CPUArchitecture.isIntel ? SherpaParakeetModelRegistry.v3.expectedDownloadBytes : 483_288_717
+            case .parakeetTDTv2:
+                return CPUArchitecture.isIntel ? SherpaParakeetModelRegistry.v2.expectedDownloadBytes : 464_421_712
             case .parakeetRealtime: return 449_190_189
             case .qwen3Asr: return 2000 * 1024 * 1024
             case .cohereTranscribeSixBit: return 1_650_748_785
@@ -4241,7 +4243,7 @@ final class SettingsStore: ObservableObject {
 
         var requiresAppleSilicon: Bool {
             switch self {
-            case .parakeetTDT, .parakeetTDTv2, .parakeetRealtime, .qwen3Asr, .cohereTranscribeSixBit, .nemotronOffline, .nemotronStreaming, .nemotronStreaming320: return true
+            case .qwen3Asr: return true
             default: return false
             }
         }
@@ -4318,15 +4320,12 @@ final class SettingsStore: ObservableObject {
             }
         }
 
-        /// Returns models available for the current Mac's architecture and OS
-        static var availableModels: [SpeechModel] {
+        static func availableModels(
+            for architecture: CPUArchitecture,
+            supportsMacOS15: Bool,
+            supportsMacOS26: Bool
+        ) -> [SpeechModel] {
             allCases.filter { model in
-                if model == .whisperLargeTurbo, !CPUArchitecture.isAppleSilicon {
-                    return false
-                }
-                if model == .whisperLarge, !CPUArchitecture.isAppleSilicon {
-                    return false
-                }
                 if model == .qwen3Asr, !Self.qwenPreviewEnabled {
                     return false
                 }
@@ -4334,29 +4333,42 @@ final class SettingsStore: ObservableObject {
                     return false
                 }
                 // Filter by Apple Silicon requirement
-                if model.requiresAppleSilicon, !CPUArchitecture.isAppleSilicon {
+                if model.requiresAppleSilicon, architecture == .intel {
                     return false
                 }
-                // Filter by macOS 15 requirement
-                if model.requiresMacOS15, #unavailable(macOS 15.0) {
+                if model.requiresMacOS15, !supportsMacOS15 {
                     return false
                 }
-                // Filter by macOS 26 requirement
-                if model.requiresMacOS26 {
-                    if #available(macOS 26.0, *) {
-                        return true
-                    } else {
-                        return false
-                    }
+                if model.requiresMacOS26, !supportsMacOS26 {
+                    return false
                 }
                 return true
             }
         }
 
-        /// Default model for the current architecture
-        static var defaultModel: SpeechModel {
-            CPUArchitecture.isAppleSilicon ? .parakeetTDT : .whisperBase
+        /// Returns models available for the current Mac's architecture and OS.
+        static var availableModels: [SpeechModel] {
+            let supportsMacOS15: Bool
+            let supportsMacOS26: Bool
+            if #available(macOS 15.0, *) {
+                supportsMacOS15 = true
+            } else {
+                supportsMacOS15 = false
+            }
+            if #available(macOS 26.0, *) {
+                supportsMacOS26 = true
+            } else {
+                supportsMacOS26 = false
+            }
+            return self.availableModels(
+                for: .current,
+                supportsMacOS15: supportsMacOS15,
+                supportsMacOS26: supportsMacOS26
+            )
         }
+
+        /// Universal default; the backend route selects the implementation for each architecture.
+        static let defaultModel: SpeechModel = .parakeetTDT
 
         // MARK: - UI Card Metadata
 
@@ -4454,6 +4466,14 @@ final class SettingsStore: ObservableObject {
         /// Warning text for models with high memory requirements, nil if no warning needed
         var memoryWarning: String? {
             switch self {
+            case .parakeetRealtime where CPUArchitecture.isIntel:
+                return "Intel uses the CPU and graphics processor. Live text may appear more slowly than on Apple Silicon."
+            case .cohereTranscribeSixBit where CPUArchitecture.isIntel:
+                return "Intel preview: needs 8GB+ RAM and several GB of temporary free space during first-time setup."
+            case .nemotronOffline, .nemotronStreaming, .nemotronStreaming320:
+                return CPUArchitecture.isIntel
+                    ? "Intel preview: works locally but can be much slower than real time."
+                    : nil
             case .qwen3Asr:
                 return "⚠️ Requires 8GB+ RAM. Best on newer Apple Silicon Macs."
             case .whisperLarge:
@@ -4579,6 +4599,8 @@ final class SettingsStore: ObservableObject {
         /// Large Whisper models are too slow for streaming, so they only do final transcription on stop.
         var supportsStreaming: Bool {
             switch self {
+            case .nemotronOffline where CPUArchitecture.isIntel:
+                return false
             case .qwen3Asr, .whisperMedium, .whisperLargeTurbo, .whisperLarge:
                 return false // Too slow for real-time chunk processing
             default:
@@ -4603,6 +4625,8 @@ final class SettingsStore: ObservableObject {
         /// Models without native incremental decoding should use a slower interval.
         var streamingPreviewIntervalSeconds: Double {
             switch self {
+            case .parakeetTDT, .parakeetTDTv2:
+                return CPUArchitecture.isIntel ? 1.5 : 0.6
             case .parakeetRealtime:
                 return 0.2
             case .nemotronStreaming, .nemotronStreaming320:
@@ -4665,12 +4689,20 @@ final class SettingsStore: ObservableObject {
             case .appleSpeech, .appleSpeechAnalyzer:
                 return true
             case .parakeetTDT:
+                if CPUArchitecture.isIntel {
+                    guard let directory = SherpaParakeetModelRegistry.cacheDirectory(for: self) else { return false }
+                    return SherpaParakeetModelRegistry.v3.artifactsAreComplete(at: directory)
+                }
                 #if canImport(FluidAudio)
                 return Self.parakeetModelsExist(version: .v3)
                 #else
                 return false
                 #endif
             case .parakeetTDTv2:
+                if CPUArchitecture.isIntel {
+                    guard let directory = SherpaParakeetModelRegistry.cacheDirectory(for: self) else { return false }
+                    return SherpaParakeetModelRegistry.v2.artifactsAreComplete(at: directory)
+                }
                 #if canImport(FluidAudio)
                 return Self.parakeetModelsExist(version: .v2)
                 #else
@@ -4709,11 +4741,7 @@ final class SettingsStore: ObservableObject {
                 }
                 let directory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?
                     .appendingPathComponent(hint, isDirectory: true)
-                #if arch(arm64)
                 return directory.map { NemotronProvider.artifactsAreComplete(at: $0) } ?? false
-                #else
-                return false
-                #endif
             default:
                 // Whisper models
                 guard let whisperFile = self.whisperModelFile else { return false }
@@ -5233,10 +5261,6 @@ extension SettingsStore {
                 if model == .nemotronStreaming320 {
                     return .nemotronStreaming
                 }
-                let requiresAppleSiliconWhisper = model == .whisperLargeTurbo || model == .whisperLarge
-                if requiresAppleSiliconWhisper, !CPUArchitecture.isAppleSilicon {
-                    return .whisperBase
-                }
                 // Validate model is available on this architecture
                 if model.requiresAppleSilicon && !CPUArchitecture.isAppleSilicon {
                     return .whisperBase
@@ -5333,11 +5357,11 @@ extension SettingsStore {
             case "ggml-base.bin": newModel = .whisperBase
             case "ggml-small.bin": newModel = .whisperSmall
             case "ggml-medium.bin": newModel = .whisperMedium
-            case "ggml-large-v3.bin": newModel = CPUArchitecture.isAppleSilicon ? .whisperLarge : .whisperBase
+            case "ggml-large-v3.bin": newModel = .whisperLarge
             default: newModel = .whisperBase
             }
         case "fluidAudio":
-            newModel = CPUArchitecture.isAppleSilicon ? .parakeetTDT : .whisperBase
+            newModel = SpeechModel.defaultModel
         default: // "auto"
             newModel = SpeechModel.defaultModel
         }

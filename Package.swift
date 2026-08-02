@@ -9,10 +9,12 @@ let package = Package(
         .macOS("15.0"),
     ],
     dependencies: [
-        .package(url: "https://github.com/mxcl/AppUpdater.git", from: "1.0.0"),
+        .package(path: "Vendor/SherpaOnnxRuntime"),
+        .package(url: "https://github.com/mxcl/AppUpdater.git", from: "1.1.1"),
         .package(url: "https://github.com/altic-dev/FluidAudio.git", branch: "B/cohere-coreml-asr"),
         .package(url: "https://github.com/mxcl/PromiseKit", from: "6.0.0"),
         .package(url: "https://github.com/altic-dev/DynamicNotchKit.git", branch: "main"),
+        .package(url: "https://github.com/ejbills/mediaremote-adapter", branch: "master"),
         .package(url: "https://github.com/altic-dev/transcribe-cpp-swift.git", exact: "0.1.2"),
         .package(url: "https://github.com/PostHog/posthog-ios.git", from: "3.0.0"),
     ],
@@ -30,10 +32,18 @@ let package = Package(
                 "AppUpdater",
                 "CoreAudioCaptureSupport",
                 "FluidAudio",
+                "MediaRemoteAdapter",
                 "PromiseKit",
                 "DynamicNotchKit",
+                "SherpaOnnxRuntime",
                 .product(name: "TranscribeCpp", package: "transcribe-cpp-swift"),
                 .product(name: "PostHog", package: "posthog-ios"),
+            ],
+            path: "Sources/Fluid",
+            exclude: [
+                "CoreAudioCaptureSupportBridge.c",
+                "CoreAudioCaptureSupportBridge.h",
+                "Fluid-Bridging-Header.h",
             ]
         ),
     ]

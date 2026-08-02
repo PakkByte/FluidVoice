@@ -125,7 +125,7 @@ struct WelcomeView: View {
                                     action: {
                                         if self.asr.micStatus == .notDetermined {
                                             self.asr.requestMicAccess()
-                                        } else if self.asr.micStatus == .denied {
+                                        } else {
                                             self.asr.openSystemSettingsForMic()
                                         }
                                     },

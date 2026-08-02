@@ -1,0 +1,63 @@
+name: macOS
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: macos-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15-intel
+            architecture: x86_64
+          - runner: macos-15
+            architecture: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode 26.3
+        run: sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
+      - name: Resolve packages
+        run: xcodebuild -resolvePackageDependencies -project Fluid.xcodeproj -scheme Fluid
+      - name: Build complete app for testing
+        run: >-
+          xcodebuild build-for-testing
+          -project Fluid.xcodeproj
+          -scheme Fluid
+          -configuration Debug
+          -derivedDataPath "${{ github.workspace }}/DerivedData/CI"
+          -destination 'platform=macOS,arch=${{ matrix.architecture }}'
+          CODE_SIGNING_ALLOWED=NO
+      - name: Smoke test Intel Parakeet app routing
+        if: matrix.architecture == 'x86_64'
+        run: >-
+          "${{ github.workspace }}/DerivedData/CI/Build/Products/Debug/FluidVoice Debug.app/Contents/MacOS/FluidVoice Debug"
+          --fluidvoice-intel-provider-smoke
+      # The hosted Intel runner's virtual audio device can prevent the GUI test
+      # host from connecting. Run app-hosted tests on Apple silicon and exercise
+      # the Sherpa runtime directly on Intel after proving the full app links.
+      - name: Test Parakeet app integration
+        if: matrix.architecture == 'arm64'
+        run: >-
+          xcodebuild test-without-building
+          -project Fluid.xcodeproj
+          -scheme Fluid
+          -configuration Debug
+          -derivedDataPath "${{ github.workspace }}/DerivedData/CI"
+          -destination 'platform=macOS,arch=${{ matrix.architecture }}'
+          -only-testing:FluidDictationIntegrationTests/DictationE2ETests/testIntelOffersEveryCompatibleSpeechModel
+          -only-testing:FluidDictationIntegrationTests/DictationE2ETests/testParakeetBackendRoutingPreservesAppleSiliconPath
+          -only-testing:FluidDictationIntegrationTests/DictationE2ETests/testSherpaParakeetManifestsArePinnedAndComplete
+          -only-testing:FluidDictationIntegrationTests/DictationE2ETests/testSherpaParakeetRejectsWrongSizedArtifacts
+          CODE_SIGNING_ALLOWED=NO
+      - name: Test Sherpa runtime
+        if: matrix.architecture == 'x86_64'
+        run: swift test --package-path Vendor/SherpaOnnxRuntime

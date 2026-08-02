@@ -213,8 +213,14 @@ final class VoiceEngineSettingsViewModel: ObservableObject {
         case .appleSpeechAnalyzer:
             return "Apple Speech uses advanced on-device recognition with fast, accurate transcription. Requires macOS 26+."
         case .parakeetTDT:
+            if CPUArchitecture.isIntel {
+                return "Parakeet TDT v3 runs locally on this Intel Mac using Sherpa ONNX and the CPU. It supports 25 languages and transcribes after you stop speaking."
+            }
             return "Parakeet TDT v3 uses CoreML and Neural Engine for fastest transcription (25 languages) on Apple Silicon."
         case .parakeetTDTv2:
+            if CPUArchitecture.isIntel {
+                return "Parakeet TDT v2 runs locally on this Intel Mac using Sherpa ONNX and the CPU. It is optimized for English and transcribes after you stop speaking."
+            }
             return "Parakeet TDT v2 is an English-only model optimized for accuracy and consistency on Apple Silicon."
         case .parakeetRealtime:
             return "Parakeet Flash uses FluidAudio's true streaming EOU pipeline for low-latency English dictation. Best when you want words to appear live as you speak."

@@ -1,7 +1,5 @@
-import Foundation
-#if arch(arm64)
 import FluidAudio
-#endif
+import Foundation
 
 actor DictionaryTrainingEndpointDetector {
     static let chunkSize = 4096
@@ -15,7 +13,6 @@ actor DictionaryTrainingEndpointDetector {
         let id: UUID
     }
 
-    #if arch(arm64)
     private var manager: VadManager?
     private var managerTask: Task<VadManager, Error>?
     private var activeSessionID: UUID?
@@ -101,17 +98,4 @@ actor DictionaryTrainingEndpointDetector {
             throw error
         }
     }
-    #else
-    func prepare() async throws {}
-
-    func beginSession() async throws -> Session? {
-        nil
-    }
-
-    func process(_: [Float], session _: Session) async throws -> Event? {
-        nil
-    }
-
-    func endSession(_: Session) {}
-    #endif
 }

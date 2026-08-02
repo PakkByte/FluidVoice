@@ -1,8 +1,7 @@
 import AVFoundation
-import Foundation
-#if arch(arm64)
 @preconcurrency import CoreML
 import FluidAudio
+import Foundation
 
 /// TranscriptionProvider implementation using FluidAudio's true streaming Parakeet EOU pipeline.
 final class ParakeetRealtimeProvider: TranscriptionProvider {
@@ -47,7 +46,7 @@ final class ParakeetRealtimeProvider: TranscriptionProvider {
         }
 
         let configuration = MLModelConfiguration()
-        configuration.computeUnits = .cpuAndNeuralEngine
+        configuration.computeUnits = CPUArchitecture.isIntel ? .cpuAndGPU : .cpuAndNeuralEngine
         configuration.allowLowPrecisionAccumulationOnGPU = true
 
         try Task.checkCancellation()
@@ -258,18 +257,3 @@ final class ParakeetRealtimeProvider: TranscriptionProvider {
             .appendingPathComponent("parakeet-eou-streaming", isDirectory: true)
     }
 }
-#else
-final class ParakeetRealtimeProvider: TranscriptionProvider {
-    let name = "Parakeet Flash (FluidAudio)"
-    var isAvailable: Bool { false }
-    var isReady: Bool { false }
-
-    func prepare(progressHandler: ((ModelPreparationProgress) -> Void)? = nil) async throws {
-        throw NSError(domain: "ParakeetRealtimeProvider", code: -1, userInfo: [NSLocalizedDescriptionKey: "Parakeet Flash requires Apple Silicon"])
-    }
-
-    func transcribe(_ samples: [Float]) async throws -> ASRTranscriptionResult {
-        throw NSError(domain: "ParakeetRealtimeProvider", code: -1, userInfo: [NSLocalizedDescriptionKey: "Parakeet Flash requires Apple Silicon"])
-    }
-}
-#endif

@@ -204,7 +204,7 @@ extension TranscriptionProvider {
 // MARK: - Architecture Detection
 
 /// Utility to detect the current CPU architecture
-enum CPUArchitecture {
+enum CPUArchitecture: Equatable {
     case applesilicon
     case intel
 
@@ -222,5 +222,24 @@ enum CPUArchitecture {
 
     static var isIntel: Bool {
         current == .intel
+    }
+}
+
+/// Selects the implementation behind a speech model without changing the model's user-facing identity.
+enum TranscriptionBackendRoute: Equatable {
+    case fluidAudio
+    case sherpaOnnx
+    case other
+
+    static func route(
+        for model: SettingsStore.SpeechModel,
+        architecture: CPUArchitecture = .current
+    ) -> TranscriptionBackendRoute {
+        switch model {
+        case .parakeetTDT, .parakeetTDTv2:
+            return architecture == .intel ? .sherpaOnnx : .fluidAudio
+        default:
+            return .other
+        }
     }
 }

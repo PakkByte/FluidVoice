@@ -4,6 +4,116 @@ import XCTest
 
 @MainActor
 final class DictationE2ETests: XCTestCase {
+    func testIntelOffersEveryCompatibleSpeechModel() {
+        XCTAssertEqual(SettingsStore.SpeechModel.defaultModel, .parakeetTDT)
+
+        let models = SettingsStore.SpeechModel.availableModels(
+            for: .intel,
+            supportsMacOS15: true,
+            supportsMacOS26: false
+        )
+
+        XCTAssertTrue(models.contains(.parakeetTDT))
+        XCTAssertTrue(models.contains(.parakeetTDTv2))
+        XCTAssertTrue(models.contains(.parakeetRealtime))
+        XCTAssertTrue(models.contains(.cohereTranscribeSixBit))
+        XCTAssertTrue(models.contains(.nemotronOffline))
+        XCTAssertTrue(models.contains(.nemotronStreaming))
+        XCTAssertTrue(models.contains(.whisperLargeTurbo))
+        XCTAssertTrue(models.contains(.whisperLarge))
+        XCTAssertFalse(models.contains(.qwen3Asr), "Qwen remains disabled for every architecture upstream")
+        XCTAssertFalse(models.contains(.appleSpeechAnalyzer), "Apple Speech Analyzer still follows the macOS 26 requirement")
+    }
+
+    func testParakeetBackendRoutingPreservesAppleSiliconPath() {
+        XCTAssertEqual(
+            TranscriptionBackendRoute.route(for: .parakeetTDT, architecture: .intel),
+            .sherpaOnnx
+        )
+        XCTAssertEqual(
+            TranscriptionBackendRoute.route(for: .parakeetTDTv2, architecture: .intel),
+            .sherpaOnnx
+        )
+        XCTAssertEqual(
+            TranscriptionBackendRoute.route(for: .parakeetTDT, architecture: .applesilicon),
+            .fluidAudio
+        )
+    }
+
+    func testIntelParakeetStreamingPreviewUsesABoundedAudioWindow() {
+        let overflow = 32_000
+        let samples = (0..<(SherpaParakeetProvider.streamingPreviewMaxSamples + overflow)).map(Float.init)
+
+        let preview = SherpaParakeetProvider.streamingPreviewSamples(from: samples)
+
+        XCTAssertEqual(preview.count, SherpaParakeetProvider.streamingPreviewMaxSamples)
+        XCTAssertEqual(preview.first, Float(overflow))
+        XCTAssertEqual(preview.last, samples.last)
+    }
+
+    func testIntelParakeetStreamingPreviewMergesWindowOverlap() {
+        XCTAssertEqual(
+            SherpaParakeetProvider.mergedStreamingPreview(
+                previous: "Hello world this is",
+                current: "world this is FluidVoice"
+            ),
+            "Hello world this is FluidVoice"
+        )
+    }
+
+    func testIntelParakeetStreamingPreviewAppendsWithoutOverlap() {
+        XCTAssertEqual(
+            SherpaParakeetProvider.mergedStreamingPreview(
+                previous: "First window",
+                current: "second window"
+            ),
+            "First window second window"
+        )
+    }
+
+    func testSherpaParakeetManifestsArePinnedAndComplete() {
+        for spec in [SherpaParakeetModelRegistry.v2, SherpaParakeetModelRegistry.v3] {
+            XCTAssertEqual(spec.revision.count, 40)
+            XCTAssertEqual(Set(spec.artifacts.map(\.path)), [
+                "encoder.int8.onnx",
+                "decoder.int8.onnx",
+                "joiner.int8.onnx",
+                "tokens.txt",
+            ])
+            XCTAssertTrue(spec.artifacts.allSatisfy { $0.byteCount > 0 && $0.sha256.count == 64 })
+            XCTAssertGreaterThan(spec.expectedDownloadBytes, 600_000_000)
+        }
+    }
+
+    func testSherpaParakeetRejectsWrongSizedArtifacts() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        for artifact in SherpaParakeetModelRegistry.v2.artifacts {
+            try Data("not a model".utf8).write(to: root.appendingPathComponent(artifact.path))
+        }
+
+        XCTAssertFalse(SherpaParakeetModelRegistry.v2.artifactsAreComplete(at: root))
+    }
+
+    func testSherpaParakeetTranscribesFixtureWhenExplicitlyEnabled() async throws {
+        guard ProcessInfo.processInfo.environment["FLUIDVOICE_RUN_SHERPA_INTEGRATION"] == "1" else {
+            throw XCTSkip("Set FLUIDVOICE_RUN_SHERPA_INTEGRATION=1 to download and exercise the real Intel model.")
+        }
+        guard CPUArchitecture.isIntel else {
+            throw XCTSkip("The custom Sherpa provider is used on Intel Macs.")
+        }
+
+        let provider = SherpaParakeetProvider(modelOverride: .parakeetTDTv2)
+        try await provider.prepare(progressHandler: nil)
+        let samples = try AudioFixtureLoader.load16kMonoFloatSamples(named: "dictation_fixture", ext: "wav")
+        let result = try await provider.transcribeFinal(samples)
+
+        XCTAssertFalse(result.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    }
+
     private let enableTranscriptionSoundsKey = "EnableTranscriptionSounds"
     private let transcriptionStartSoundKey = "TranscriptionStartSound"
     private let dictationPromptProfilesKey = "DictationPromptProfiles"
@@ -314,6 +424,7 @@ final class DictationE2ETests: XCTestCase {
         }
     }
 
+    #if arch(arm64)
     func testPronunciationDictionaryLabelsUseLastDuplicateEntry() {
         let id = UUID()
         let labels = FluidAudioProvider.dictionaryLabels(from: [
@@ -323,6 +434,7 @@ final class DictationE2ETests: XCTestCase {
 
         XCTAssertEqual(labels, [id: "New"])
     }
+    #endif
 
     func testCustomDictionaryReplacementMatchesPunctuationTriggers() {
         defer { ASRService.invalidateDictionaryCache() }
@@ -777,6 +889,7 @@ final class DictationE2ETests: XCTestCase {
         }
     }
 
+    #if arch(arm64)
     func testPronunciationReplacementPreservesPunctuationAndSpacing() {
         let replacements = [
             FluidAudioProvider.PronunciationTextReplacement(wordRange: 1...1, label: "Barath"),
@@ -791,6 +904,7 @@ final class DictationE2ETests: XCTestCase {
             "Hi,  Barath! How are you?"
         )
     }
+    #endif
 
     func testPronunciationStoreRejectsInconsistentEnrollments() async {
         let store = PronunciationDictionaryStore()
@@ -2109,6 +2223,14 @@ final class DictationE2ETests: XCTestCase {
         // A stray `<` NOT followed by a markup-ish byte must not be over-rejected.
         XCTAssertFalse(HuggingFaceModelDownloader.looksLikeHTML(Data("< not markup".utf8)))
         XCTAssertFalse(HuggingFaceModelDownloader.looksLikeHTML(Data("<".utf8)))
+    }
+
+    func testLooksLikeHTML_acceptsParakeetTokenVocabulary() {
+        let parakeetV2Prefix = "<unk> 0\n▁t 1\n▁th 2\n"
+        let parakeetV3Prefix = "<unk> 0\n<|nospeech|> 1\n<pad> 2\n"
+
+        XCTAssertFalse(HuggingFaceModelDownloader.looksLikeHTML(Data(parakeetV2Prefix.utf8)))
+        XCTAssertFalse(HuggingFaceModelDownloader.looksLikeHTML(Data(parakeetV3Prefix.utf8)))
     }
 
     func testValidateDownloadedFile_rejectsHTMLBodyAndAcceptsJSON() throws {

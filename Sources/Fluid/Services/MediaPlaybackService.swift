@@ -1,7 +1,5 @@
 import Foundation
-#if arch(arm64)
 import MediaRemoteAdapter
-#endif
 
 /// Service that wraps MediaRemoteAdapter's MediaController to provide
 /// controlled pause/resume functionality during transcription.
@@ -12,15 +10,12 @@ import MediaRemoteAdapter
 final class MediaPlaybackService {
     static let shared = MediaPlaybackService()
 
-    #if arch(arm64)
     private let mediaController = MediaController()
-    #endif
 
     private init() {}
 
     // MARK: - Public API
 
-    #if arch(arm64)
     /// Pauses system media playback if something is currently playing.
     ///
     /// - Returns: `true` if we successfully paused playback, `false` if nothing was playing
@@ -46,10 +41,12 @@ final class MediaPlaybackService {
                 resumeLock.unlock()
 
                 guard shouldResume else {
-                    DebugLogger.shared.warning(
-                        "MediaPlaybackService: Suppressed duplicate resume (MediaRemoteAdapter callback fired more than once)",
-                        source: "MediaPlaybackService"
-                    )
+                    Task { @MainActor in
+                        DebugLogger.shared.warning(
+                            "MediaPlaybackService: Suppressed duplicate resume (MediaRemoteAdapter callback fired more than once)",
+                            source: "MediaPlaybackService"
+                        )
+                    }
                     return
                 }
 
@@ -134,18 +131,4 @@ final class MediaPlaybackService {
         // Use explicit play() command - never toggle
         self.mediaController.play()
     }
-    #else
-    // Intel Mac stub - media control not available
-    func pauseIfPlaying() async -> Bool {
-        DebugLogger.shared.debug(
-            "MediaPlaybackService: Not available on Intel Macs",
-            source: "MediaPlaybackService"
-        )
-        return false
-    }
-
-    func resumeIfWePaused(_ wePaused: Bool) async {
-        // No-op on Intel
-    }
-    #endif
 }
